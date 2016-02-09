@@ -130,4 +130,7 @@
     <string name="pref_tracing_dlg">Debug performance tracing.</string>
     <string name="pref_tracing_default" translatable="false">false</string>
 
+    <string name="host">10.0.0.23</string>
+    <string name="port">3000</string>
+
 </resources>
