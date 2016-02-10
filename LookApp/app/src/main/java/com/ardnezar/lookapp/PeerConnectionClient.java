@@ -17,7 +17,7 @@ import android.util.Log;
 
 import com.ardnezar.lookapp.util.LooperExecutor;
 import com.github.nkzawa.emitter.Emitter;
-import com.github.nkzawa.socketio.client.IO;
+import com.github.nkzawa.socketio.client.Manager;
 import com.github.nkzawa.socketio.client.Socket;
 
 import org.json.JSONException;
@@ -46,6 +46,7 @@ import org.webrtc.voiceengine.WebRtcAudioManager;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -135,10 +136,12 @@ public class PeerConnectionClient {
 
 	//Socket client
 	private Socket client;
+	private Socket client2;
 	private HashMap<String, Peer> peers = new HashMap<>();
 	private LinkedList<PeerConnection.IceServer> iceServers = new LinkedList<>();
 	private final static int MAX_PEER = 2;
 	private boolean[] endPoints = new boolean[MAX_PEER];
+	private Manager manager;
 
 	private RtcListener mListener;
 
@@ -305,13 +308,57 @@ public class PeerConnectionClient {
 		MessageHandler messageHandler = new MessageHandler();
 
 		try {
-			client = IO.socket(host);
+//			client = IO.socket(host);
+			manager = new Manager(new URI(host));
+//			manager.on
+			client = manager.socket("/");
+
+//			Socket test = client.
+
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
 		}
-		client.on("id", messageHandler.onId);
-		client.on("message", messageHandler.onMessage);
+		client.on("id", messageHandler.onId)
+		.on("message", messageHandler.onMessage)
+		.on("broadcastBack", new Emitter.Listener() {
+			@Override
+			public void call(Object... args) {
+				Log.d(TAG, "Broadcast received");
+				if(args != null) {
+					Log.d(TAG, "Broadcast message:"+(String) args[0]);
+				}
+			}
+		})
+		.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+
+			@Override
+			public void call(Object... args) {
+				Log.d(TAG, "Client connected received");
+//				client2 = manager.socket("/");
+				client.emit("broadcast", "hi");
+
+//				if (client2 != null) {
+//					client2.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+//						@Override
+//						public void call(Object... objects) {
+//							Log.d(TAG, "Sending broadcast");
+//							client2.emit("broadcast", "hi");
+//							client2.disconnect();
+//						}
+//					});
+//					client2.connect();
+//				} else {
+//					Log.d(TAG, "Socket2 null");
+//				}
+
+			}
+		});
+
 		client.connect();
+
+
+
+
 		iceServers.add(new PeerConnection.IceServer("stun:stun.l.google.com:19302"));
 		executor.execute(new Runnable() {
 			@Override
@@ -357,29 +404,31 @@ public class PeerConnectionClient {
 		private Emitter.Listener onMessage = new Emitter.Listener() {
 			@Override
 			public void call(Object... args) {
-				JSONObject data = (JSONObject) args[0];
-				try {
-					String from = data.getString("from");
-					String type = data.getString("type");
-					JSONObject payload = null;
-					if(!type.equals("init")) {
-						payload = data.getJSONObject("payload");
-					}
-					// if peer is unknown, try to add him
-					if(!peers.containsKey(from)) {
-						// if MAX_PEER is reach, ignore the call
-						int endPoint = findEndPoint();
-						if(endPoint != MAX_PEER) {
-							Peer peer = addPeer(from, endPoint);
-							peer.pc.addStream(mediaStream);
-							commandMap.get(type).execute(from, payload);
-						}
-					} else {
-						commandMap.get(type).execute(from, payload);
-					}
-				} catch (JSONException e) {
-					e.printStackTrace();
-				}
+				String id = (String) args[0];
+				Log.d(TAG, "onMessage..id:"+id);
+//				JSONObject data = (JSONObject) args[0];
+//				try {
+//					String from = data.getString("from");
+//					String type = data.getString("type");
+//					JSONObject payload = null;
+//					if(!type.equals("init")) {
+//						payload = data.getJSONObject("payload");
+//					}
+//					// if peer is unknown, try to add him
+//					if(!peers.containsKey(from)) {
+//						// if MAX_PEER is reach, ignore the call
+//						int endPoint = findEndPoint();
+//						if(endPoint != MAX_PEER) {
+//							Peer peer = addPeer(from, endPoint);
+//							peer.pc.addStream(mediaStream);
+//							commandMap.get(type).execute(from, payload);
+//						}
+//					} else {
+//						commandMap.get(type).execute(from, payload);
+//					}
+//				} catch (JSONException e) {
+//					e.printStackTrace();
+//				}
 			}
 		};
 
@@ -389,6 +438,15 @@ public class PeerConnectionClient {
 				String id = (String) args[0];
 				Log.d(TAG, "onCallReady..id:"+id);
 //				mListener.onCallReady(id);
+
+//				try {
+//					client2 = manager.socket("/");
+//				} catch (URISyntaxException e) {
+//					throw new RuntimeException(e);
+//				}
+
+				Log.d(TAG, "onCallReady..done");
+//				client.emit("broadcast", "hi");
 			}
 		};
 	}
@@ -829,6 +887,12 @@ public class PeerConnectionClient {
 		options = null;
 		Log.d(TAG, "Closing peer connection done.");
 		events.onPeerConnectionClosed();
+		if(client != null) {
+			client.close();
+		}
+		if(client2 != null) {
+			client2.close();
+		}
 		PeerConnectionFactory.stopInternalTracingCapture();
 		PeerConnectionFactory.shutdownInternalTracer();
 	}
