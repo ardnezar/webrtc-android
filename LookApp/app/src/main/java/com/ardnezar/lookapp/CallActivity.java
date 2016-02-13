@@ -29,7 +29,6 @@ import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
 import org.webrtc.RendererCommon.ScalingType;
 import org.webrtc.SessionDescription;
-import org.webrtc.StatsReport;
 import org.webrtc.SurfaceViewRenderer;
 
 
@@ -269,13 +268,9 @@ public class CallActivity extends Activity
 		}
 
 		peerConnectionClient = PeerConnectionClient.getInstance();
-		peerConnectionClient.createPeerConnectionFactory(
-				CallActivity.this, peerConnectionParameters, CallActivity.this);
-		String address = "http://" + getResources().getString(R.string.host);
-		address += (":" + getResources().getString(R.string.port) + "/");
 		peerConnectionClient.createPeerConnection(rootEglBase.getEglBaseContext(),
 				localRender,
-				remoteRender, address);
+				remoteRender, this, peerConnectionParameters);
 	}
 
 	// Activity interfaces
@@ -652,17 +647,17 @@ public class CallActivity extends Activity
 	public void onPeerConnectionClosed() {
 	}
 
-	@Override
-	public void onPeerConnectionStatsReady(final StatsReport[] reports) {
-		runOnUiThread(new Runnable() {
-			@Override
-			public void run() {
-				if (!isError && iceConnected) {
-					hudFragment.updateEncoderStatistics(reports);
-				}
-			}
-		});
-	}
+//	@Override
+//	public void onPeerConnectionStatsReady(final StatsReport[] reports) {
+//		runOnUiThread(new Runnable() {
+//			@Override
+//			public void run() {
+//				if (!isError && iceConnected) {
+//					hudFragment.updateEncoderStatistics(reports);
+//				}
+//			}
+//		});
+//	}
 
 	@Override
 	public void onPeerConnectionError(final String description) {

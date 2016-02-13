@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="no">AppRTC</string>
+    <string name="app_name" translatable="no">LookApp</string>
     <string name="settings_name" translatable="no">AppRTC Settings</string>
     <string name="disconnect_call">Disconnect Call</string>
     <string name="room_names">Room names:</string>
@@ -132,5 +132,7 @@
 
     <string name="host">10.0.0.23</string>
     <string name="port">3000</string>
+    <string name="title_activity_look_app_main">LookAppMainActivity</string>
+    <string name="section_format">Hello World from section: %1$d</string>
 
 </resources>
