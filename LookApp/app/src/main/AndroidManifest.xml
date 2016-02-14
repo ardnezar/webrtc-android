@@ -22,7 +22,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
@@ -33,12 +32,15 @@
         tools:replace="android:allowBackup" >
         <activity
             android:name=".ConnectActivity"
-            android:label="@string/app_name" >
-            <!--<intent-filter>-->
-                <!--<action android:name="android.intent.action.MAIN" />-->
+            android:label="@string/app_name"
+            android:screenOrientation="portrait" >
 
-                <!--<category android:name="android.intent.category.LAUNCHER" />-->
-            <!--</intent-filter>-->
+            <!-- <intent-filter> -->
+            <!-- <action android:name="android.intent.action.MAIN" /> -->
+
+
+            <!-- <category android:name="android.intent.category.LAUNCHER" /> -->
+            <!-- </intent-filter> -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -61,15 +63,21 @@
             android:name=".CallActivity"
             android:configChanges="orientation|screenSize"
             android:label="@string/app_name"
-            android:screenOrientation="fullUser" >
+            android:screenOrientation="portrait" >
 
             <!-- android:theme="@style/CallActivityTheme" -->
         </activity>
         <activity
-            android:name=".activities.LookAppMainActivity"
+            android:name=".activities.LoopAppMainActivity"
             android:label="@string/title_activity_look_app_main"
-            android:configChanges="orientation|screenSize"
+            android:screenOrientation="portrait"
             android:theme="@style/AppTheme.NoActionBar" >
+        </activity>
+        <activity android:name=".activities.ChatBubbleActivity" />
+        <activity android:name=".activities.LookAppInitActivity" >
+        </activity>
+        <activity android:name=".activities.LoopAppLauncherActivity"
+                  android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

@@ -11,14 +11,17 @@
 package com.ardnezar.lookapp;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
+import com.ardnezar.lookapp.activities.LoopAppMainActivity;
 import com.ardnezar.lookapp.util.LooperExecutor;
 import com.github.nkzawa.emitter.Emitter;
 import com.github.nkzawa.socketio.client.Manager;
 import com.github.nkzawa.socketio.client.Socket;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.webrtc.CameraEnumerationAndroid;
@@ -43,6 +46,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -137,6 +141,10 @@ public class PeerConnectionClient {
 	private Manager manager;
 
 	private String mSessionId;
+
+	private Context mContext;
+
+	private String mId;
 
 //	private RtcListener mListener;
 
@@ -261,8 +269,11 @@ public class PeerConnectionClient {
 
 	public void createPeerConnectionFactory(
 			final Context context,
-			String host) {
+			String host,
+			String id) {
 
+		mContext = context;
+		mId = id;
 		// Reset variables to initial states.
 		factory = null;
 		peerConnection = null;
@@ -290,6 +301,7 @@ public class PeerConnectionClient {
 				.on(TEXT_MESSAGE, messageHandler.onTextMessage)
 				.on(INVITE_MESSAGE, messageHandler.onInviteMessage)
 				.on(LEAVE_MESSAGE, messageHandler.onLeaveMessage)
+				.on(AVAILABLE_USERS_MESSAGE, messageHandler.onAvailablePeersMessage)
 				.on(PRESENCE_MESSAGE, messageHandler.onPresenceMessage);
 		client.connect();
 
@@ -319,6 +331,7 @@ public class PeerConnectionClient {
 	private static final String READY_MESSAGE = "READY-TO-CONNECT";
 	private static final String TEXT_MESSAGE = "MESSAGE";
 	private static final String INVITE_MESSAGE = "INVITE";
+	private static final String AVAILABLE_USERS_MESSAGE = "AVAILABLE-USERS";
 
 	public void createPeerConnection(
 			final EglBase.Context renderEGLContext,
@@ -416,6 +429,11 @@ public class PeerConnectionClient {
 			public void call(Object... args) {
 				String peerId = (String) args[0];
 				Log.d(TAG, "onPresenceMessage..peerId:"+peerId);
+
+				Intent intent = new Intent();
+				intent.setAction(LoopAppMainActivity.PEER_ADD_ACTION);
+				intent.putExtra(LoopAppMainActivity.PEER_ID, peerId);
+				mContext.sendBroadcast(intent);
 			}
 		};
 
@@ -424,6 +442,38 @@ public class PeerConnectionClient {
 			public void call(Object... args) {
 				String peerId = (String) args[0];
 				Log.d(TAG, "onLeaveMessage..peerId:"+peerId);
+				Intent intent = new Intent();
+				intent.setAction(LoopAppMainActivity.PEER_REMOVE_ACTION);
+				intent.putExtra(LoopAppMainActivity.PEER_ID, peerId);
+				mContext.sendBroadcast(intent);
+			}
+		};
+
+		private Emitter.Listener onAvailablePeersMessage = new Emitter.Listener() {
+			@Override
+			public void call(Object... args) {
+				JSONArray peerIds = (JSONArray) args[0];
+				Log.d(TAG, "onAvailablePeersMessage..peers:" + peerIds);
+//				String[] peerIds = (String[]) args[0];
+				if(peerIds != null && peerIds.length() > 0) {
+					List<String> list = new ArrayList<String>();
+					try {
+						for (int i = 0; i < peerIds.length(); i++) {
+							if(mSessionId != null &&
+									peerIds.getString(i) != null &&
+									!peerIds.getString(i).equals(mSessionId)) {
+								list.add(peerIds.getString(i));
+							}
+						}
+						Log.d(TAG, "onAvailablePeersMessage..peer count:" + peerIds.length());
+						Intent intent = new Intent();
+						intent.setAction(LoopAppMainActivity.PEER_ADD_ACTION);
+						intent.putExtra(LoopAppMainActivity.PEER_IDS, list.toArray(new String[list.size()]));
+						mContext.sendBroadcast(intent);
+					} catch(JSONException ex){
+						Log.d(TAG, "onAvailablePeersMessage..exception");
+					}
+				}
 			}
 		};
 
@@ -464,9 +514,16 @@ public class PeerConnectionClient {
 				String id = (String) args[0];
 				Log.d(TAG, "onCallReady..id:"+id);
 
+				mSessionId = id;
+
 				//Send INIT-REPLY MESSAGE with current phone number
 
-				client.emit(INIT_REPLY_MESSAGE, "8479561609");
+				client.emit(INIT_REPLY_MESSAGE, mId);
+
+//				Intent intent = new Intent();
+//				intent.setAction(LoopAppMainActivity.PEER_ADD_ACTION);
+//				intent.putExtra(LoopAppMainActivity.PEER_ID, id);
+//				mContext.sendBroadcast(intent);
 
 //				client.emit("broadcast", "hi");
 				Log.d(TAG, "onCallReady..done");

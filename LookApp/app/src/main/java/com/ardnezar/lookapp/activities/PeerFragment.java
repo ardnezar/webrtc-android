@@ -1,5 +1,9 @@
 package com.ardnezar.lookapp.activities;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
@@ -10,12 +14,12 @@ import android.view.ViewGroup;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.ListAdapter;
 import android.widget.TextView;
 
 import com.ardnezar.lookapp.PeerConnectionClient;
 import com.ardnezar.lookapp.R;
-import com.ardnezar.lookapp.activities.dummy.DummyContent;
+
+import java.util.ArrayList;
 
 /**
  * A fragment representing a list of Items.
@@ -66,6 +70,8 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 
 	private OnFragmentInteractionListener mListener;
 
+	private ArrayList<String> mPeerList;
+
 	/**
 	 * The fragment's ListView/GridView.
 	 */
@@ -75,7 +81,10 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 	 * The Adapter which will be used to populate the ListView/GridView with
 	 * Views.
 	 */
-	private ListAdapter mAdapter;
+	private ArrayAdapter<String> mAdapter;
+
+
+
 
 	// TODO: Rename and change types of parameters
 	public static PeerFragment newInstance(String param1, String param2) {
@@ -87,6 +96,50 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 		return fragment;
 	}
 
+	@Override
+	public void onStart() {
+		super.onStart();
+		IntentFilter filter = new IntentFilter();
+		filter.addAction(LoopAppMainActivity.PEER_ADD_ACTION);
+		filter.addAction(LoopAppMainActivity.PEER_REMOVE_ACTION);
+		getActivity().registerReceiver(mReceiver, filter);
+	}
+
+	@Override
+	public void onStop() {
+		super.onStop();
+		getActivity().unregisterReceiver(mReceiver);
+	}
+
+	private BroadcastReceiver mReceiver = new BroadcastReceiver() {
+		@Override
+		public void onReceive(Context context, Intent intent) {
+			Log.d(TAG, "mReceiver");
+			if(intent.getAction().equals(LoopAppMainActivity.PEER_ADD_ACTION)) {
+				if(intent.hasExtra(LoopAppMainActivity.PEER_ID)) {
+					String id = intent.getStringExtra(LoopAppMainActivity.PEER_ID);
+					if (!mPeerList.contains(id)) mPeerList.add(id);
+					Log.d(TAG, "mReceiver..PEER_ADD_ACTION:" + id);
+				} else if(intent.hasExtra(LoopAppMainActivity.PEER_IDS)) {
+					String[] ids = intent.getStringArrayExtra(LoopAppMainActivity.PEER_IDS);
+					if(ids != null) {
+						for (String user : ids) {
+							if (!mPeerList.contains(user)) mPeerList.add(user);
+							Log.d(TAG, "mReceiver..PEER_ADD_ACTION:" + user);
+						}
+					}
+				}
+				mAdapter.notifyDataSetChanged();
+			} else if(intent.getAction().equals(LoopAppMainActivity.PEER_REMOVE_ACTION)) {
+				Log.d(TAG, "mReceiver");
+				String id = intent.getStringExtra(LoopAppMainActivity.PEER_ID);
+				mPeerList.remove(id);
+				Log.d(TAG, "mReceiver..PEER_REMOVE_ACTION:" + id);
+				mAdapter.notifyDataSetChanged();
+			}
+		}
+	};
+
 	/**
 	 * Mandatory empty constructor for the fragment manager to instantiate the
 	 * fragment (e.g. upon screen orientation changes).
@@ -97,15 +150,23 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-
+		Log.d(TAG, "onCreate");
 		if (getArguments() != null) {
 			mParam1 = getArguments().getString(ARG_PARAM1);
 			mParam2 = getArguments().getString(ARG_PARAM2);
 		}
 
 		// TODO: Change Adapter to display your content
-		mAdapter = new ArrayAdapter<DummyContent.DummyItem>(getActivity(),
-				android.R.layout.simple_list_item_1, android.R.id.text1, DummyContent.ITEMS);
+//		mAdapter = new ArrayAdapter<DummyContent.DummyItem>(getActivity(),
+//				android.R.layout.simple_list_item_1, android.R.id.text1, DummyContent.ITEMS);
+
+
+		mPeerList = new ArrayList<String>();
+
+//		mPeerList.add("Hello");
+
+		mAdapter = new ArrayAdapter(getActivity(),
+				android.R.layout.simple_list_item_1, android.R.id.text1, mPeerList);
 	}
 
 	@Override
@@ -113,9 +174,12 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 							 Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_peer, container, false);
 
+
+
 		// Set the adapter
 		mListView = (AbsListView) view.findViewById(android.R.id.list);
-		((AdapterView<ListAdapter>) mListView).setAdapter(mAdapter);
+		setEmptyText("No Peer");
+		mListView.setAdapter(mAdapter);
 
 		// Set OnItemClickListener so we can be notified on item clicks
 		mListView.setOnItemClickListener(this);
@@ -131,7 +195,8 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 
 	@Override
 	public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-		Log.d(TAG, "Clicked on:"+DummyContent.ITEMS.get(position).content);
+		Log.d(TAG, "Clicked on:"+mPeerList.get(position));
+		getActivity().startActivity(new Intent(getContext(), ChatBubbleActivity.class));
 	}
 
 	/**

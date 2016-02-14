@@ -135,4 +135,6 @@
     <string name="title_activity_look_app_main">LookAppMainActivity</string>
     <string name="section_format">Hello World from section: %1$d</string>
 
+    <string name="type_your_number">Type your number:</string>
+
 </resources>
