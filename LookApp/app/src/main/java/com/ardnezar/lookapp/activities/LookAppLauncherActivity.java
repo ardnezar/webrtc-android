@@ -17,7 +17,7 @@ public class LookAppLauncherActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
-		if(sharedPref.contains(LOOK_APP_ID)) {
+		if(sharedPref.contains(LOOK_APP_ID) && sharedPref.getString(LOOK_APP_ID, null) != null) {
 			Intent intent = new Intent(getApplicationContext(), LookAppMainActivity.class);
 			intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 			startActivity(intent);

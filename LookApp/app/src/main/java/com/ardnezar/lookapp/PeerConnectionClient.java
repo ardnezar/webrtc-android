@@ -542,7 +542,7 @@ public class PeerConnectionClient {
 
 				//Send INIT-REPLY MESSAGE with current phone number
 
-				client.emit(INIT_REPLY_MESSAGE, mId);
+				client.emit(INIT_REPLY_MESSAGE, prefs.getString(LookAppLauncherActivity.LOOK_APP_ID, null));
 
 //				Intent intent = new Intent();
 //				intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
