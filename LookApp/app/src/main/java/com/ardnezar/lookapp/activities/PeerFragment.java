@@ -100,8 +100,8 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 	public void onStart() {
 		super.onStart();
 		IntentFilter filter = new IntentFilter();
-		filter.addAction(LoopAppMainActivity.PEER_ADD_ACTION);
-		filter.addAction(LoopAppMainActivity.PEER_REMOVE_ACTION);
+		filter.addAction(LookAppMainActivity.PEER_ADD_ACTION);
+		filter.addAction(LookAppMainActivity.PEER_REMOVE_ACTION);
 		getActivity().registerReceiver(mReceiver, filter);
 	}
 
@@ -115,13 +115,13 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			Log.d(TAG, "mReceiver");
-			if(intent.getAction().equals(LoopAppMainActivity.PEER_ADD_ACTION)) {
-				if(intent.hasExtra(LoopAppMainActivity.PEER_ID)) {
-					String id = intent.getStringExtra(LoopAppMainActivity.PEER_ID);
+			if(intent.getAction().equals(LookAppMainActivity.PEER_ADD_ACTION)) {
+				if(intent.hasExtra(LookAppMainActivity.PEER_ID)) {
+					String id = intent.getStringExtra(LookAppMainActivity.PEER_ID);
 					if (!mPeerList.contains(id)) mPeerList.add(id);
 					Log.d(TAG, "mReceiver..PEER_ADD_ACTION:" + id);
-				} else if(intent.hasExtra(LoopAppMainActivity.PEER_IDS)) {
-					String[] ids = intent.getStringArrayExtra(LoopAppMainActivity.PEER_IDS);
+				} else if(intent.hasExtra(LookAppMainActivity.PEER_IDS)) {
+					String[] ids = intent.getStringArrayExtra(LookAppMainActivity.PEER_IDS);
 					if(ids != null) {
 						for (String user : ids) {
 							if (!mPeerList.contains(user)) mPeerList.add(user);
@@ -130,9 +130,9 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 					}
 				}
 				mAdapter.notifyDataSetChanged();
-			} else if(intent.getAction().equals(LoopAppMainActivity.PEER_REMOVE_ACTION)) {
+			} else if(intent.getAction().equals(LookAppMainActivity.PEER_REMOVE_ACTION)) {
 				Log.d(TAG, "mReceiver");
-				String id = intent.getStringExtra(LoopAppMainActivity.PEER_ID);
+				String id = intent.getStringExtra(LookAppMainActivity.PEER_ID);
 				mPeerList.remove(id);
 				Log.d(TAG, "mReceiver..PEER_REMOVE_ACTION:" + id);
 				mAdapter.notifyDataSetChanged();
@@ -195,8 +195,10 @@ public class PeerFragment extends Fragment implements AbsListView.OnItemClickLis
 
 	@Override
 	public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-		Log.d(TAG, "Clicked on:"+mPeerList.get(position));
-		getActivity().startActivity(new Intent(getContext(), ChatBubbleActivity.class));
+		Log.d(TAG, "Clicked on:" + mPeerList.get(position));
+		Intent intent = new Intent(getContext(), ChatBubbleActivity.class);
+		intent.putExtra(LookAppMainActivity.PEER_ID, mPeerList.get(position));
+		getActivity().startActivity(intent);
 	}
 
 	/**

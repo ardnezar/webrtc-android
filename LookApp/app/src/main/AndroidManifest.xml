@@ -68,7 +68,7 @@
             <!-- android:theme="@style/CallActivityTheme" -->
         </activity>
         <activity
-            android:name=".activities.LoopAppMainActivity"
+            android:name=".activities.LookAppMainActivity"
             android:label="@string/title_activity_look_app_main"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme.NoActionBar" >
@@ -76,7 +76,7 @@
         <activity android:name=".activities.ChatBubbleActivity" />
         <activity android:name=".activities.LookAppInitActivity" >
         </activity>
-        <activity android:name=".activities.LoopAppLauncherActivity"
+        <activity android:name=".activities.LookAppLauncherActivity"
                   android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

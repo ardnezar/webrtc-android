@@ -12,10 +12,13 @@ package com.ardnezar.lookapp;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.ParcelFileDescriptor;
+import android.preference.PreferenceManager;
 import android.util.Log;
 
-import com.ardnezar.lookapp.activities.LoopAppMainActivity;
+import com.ardnezar.lookapp.activities.LookAppMainActivity;
+import com.ardnezar.lookapp.activities.LookAppLauncherActivity;
 import com.ardnezar.lookapp.util.LooperExecutor;
 import com.github.nkzawa.emitter.Emitter;
 import com.github.nkzawa.socketio.client.Manager;
@@ -289,6 +292,8 @@ public class PeerConnectionClient {
 		remoteVideoTrack = null;
 		statsTimer = new Timer();
 		MessageHandler messageHandler = new MessageHandler();
+		PreferenceManager.getDefaultSharedPreferences(mContext).edit().
+				putString(LookAppLauncherActivity.LOOK_SESSION_ID, "").apply();
 
 		try {
 			manager = new Manager(new URI(host));
@@ -361,7 +366,7 @@ public class PeerConnectionClient {
 
 	private class CreateOfferCommand implements Command{
 		public void execute(String peerId, JSONObject payload) throws JSONException {
-			Log.d(TAG,"CreateOfferCommand");
+			Log.d(TAG, "CreateOfferCommand");
 			Peer peer = peers.get(peerId);
 			peer.pc.createOffer(peer, sdpMediaConstraints);
 		}
@@ -431,8 +436,8 @@ public class PeerConnectionClient {
 				Log.d(TAG, "onPresenceMessage..peerId:"+peerId);
 
 				Intent intent = new Intent();
-				intent.setAction(LoopAppMainActivity.PEER_ADD_ACTION);
-				intent.putExtra(LoopAppMainActivity.PEER_ID, peerId);
+				intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
+				intent.putExtra(LookAppMainActivity.PEER_ID, peerId);
 				mContext.sendBroadcast(intent);
 			}
 		};
@@ -443,8 +448,8 @@ public class PeerConnectionClient {
 				String peerId = (String) args[0];
 				Log.d(TAG, "onLeaveMessage..peerId:"+peerId);
 				Intent intent = new Intent();
-				intent.setAction(LoopAppMainActivity.PEER_REMOVE_ACTION);
-				intent.putExtra(LoopAppMainActivity.PEER_ID, peerId);
+				intent.setAction(LookAppMainActivity.PEER_REMOVE_ACTION);
+				intent.putExtra(LookAppMainActivity.PEER_ID, peerId);
 				mContext.sendBroadcast(intent);
 			}
 		};
@@ -454,7 +459,6 @@ public class PeerConnectionClient {
 			public void call(Object... args) {
 				JSONArray peerIds = (JSONArray) args[0];
 				Log.d(TAG, "onAvailablePeersMessage..peers:" + peerIds);
-//				String[] peerIds = (String[]) args[0];
 				if(peerIds != null && peerIds.length() > 0) {
 					List<String> list = new ArrayList<String>();
 					try {
@@ -467,8 +471,8 @@ public class PeerConnectionClient {
 						}
 						Log.d(TAG, "onAvailablePeersMessage..peer count:" + peerIds.length());
 						Intent intent = new Intent();
-						intent.setAction(LoopAppMainActivity.PEER_ADD_ACTION);
-						intent.putExtra(LoopAppMainActivity.PEER_IDS, list.toArray(new String[list.size()]));
+						intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
+						intent.putExtra(LookAppMainActivity.PEER_IDS, list.toArray(new String[list.size()]));
 						mContext.sendBroadcast(intent);
 					} catch(JSONException ex){
 						Log.d(TAG, "onAvailablePeersMessage..exception");
@@ -480,8 +484,25 @@ public class PeerConnectionClient {
 		private Emitter.Listener onTextMessage = new Emitter.Listener() {
 			@Override
 			public void call(Object... args) {
-				String message = (String) args[0];
-				Log.d(TAG, "onTextMessage.message:"+message);
+//				String message = (String) args[0];
+
+
+				JSONObject data = (JSONObject) args[0];
+				Log.d(TAG, "onTextMessage.message..data1:"+data.toString());
+				try {
+					String from = data.getString("from");
+					String type = data.getString("type");
+					String payload = data.getString("payload");
+					if (type.equals("text") && payload != null) {
+						Log.d(TAG, "onTextMessage.message:"+payload.toString());
+						Intent intent = new Intent();
+						intent.setAction(LookAppMainActivity.MESSAGE_RECEIVED_ACTION);
+						intent.putExtra(LookAppMainActivity.MESSAGE, payload.toString());
+						mContext.sendBroadcast(intent);
+					}
+
+
+				} catch (JSONException ex){}
 //				JSONObject data = (JSONObject) args[0];
 //				try {
 //					String from = data.getString("from");
@@ -516,13 +537,16 @@ public class PeerConnectionClient {
 
 				mSessionId = id;
 
+				SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+				prefs.edit().putString(LookAppLauncherActivity.LOOK_SESSION_ID, mSessionId).apply();
+
 				//Send INIT-REPLY MESSAGE with current phone number
 
 				client.emit(INIT_REPLY_MESSAGE, mId);
 
 //				Intent intent = new Intent();
-//				intent.setAction(LoopAppMainActivity.PEER_ADD_ACTION);
-//				intent.putExtra(LoopAppMainActivity.PEER_ID, id);
+//				intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
+//				intent.putExtra(LookAppMainActivity.PEER_ID, id);
 //				mContext.sendBroadcast(intent);
 
 //				client.emit("broadcast", "hi");
@@ -629,12 +653,27 @@ public class PeerConnectionClient {
 		}
 	}
 
-	public void sendMessage(String to, String type, JSONObject payload) throws JSONException {
-		JSONObject message = new JSONObject();
-		message.put("to", to);
-		message.put("type", type);
-		message.put("payload", payload);
-		client.emit("message", message);
+	public void sendMessage(String to, String type, JSONObject msg) {
+		try {
+			JSONObject message = new JSONObject();
+			message.put("to", to);
+			message.put("type", type);
+			message.put("payload", msg);
+			client.emit("message", message);
+		} catch(JSONException ex){}
+	}
+
+	public void sendMessage(String to, String type, String msg) {
+		Log.d(TAG, "sendMessage..to:"+to+",msg:"+msg);
+		try {
+			JSONObject message = new JSONObject();
+			message.put("to", to);
+			message.put("type", type);
+			message.put("payload", msg);
+			client.emit(TEXT_MESSAGE, message);
+		} catch(JSONException ex){
+
+		}
 	}
 
 	private Peer addPeer(String id, int endPoint) {

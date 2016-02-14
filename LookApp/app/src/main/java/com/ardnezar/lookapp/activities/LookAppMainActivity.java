@@ -23,7 +23,7 @@ import com.ardnezar.lookapp.R;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class LoopAppMainActivity extends AppCompatActivity {
+public class LookAppMainActivity extends AppCompatActivity {
 
 	/**
 	 * The {@link android.support.v4.view.PagerAdapter} that will provide
@@ -150,7 +150,7 @@ public class LoopAppMainActivity extends AppCompatActivity {
 
 		SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
 		PeerConnectionClient.getInstance().createPeerConnectionFactory(
-				this, address, pref.getString(LoopAppMainActivity.PEER_ID, "1111111111"));
+				this, address, pref.getString(LookAppLauncherActivity.LOOK_APP_ID, "1111111111"));
 
 		IntentFilter filter = new IntentFilter();
 		filter.addAction(PEER_ADD_ACTION);
@@ -276,6 +276,8 @@ public class LoopAppMainActivity extends AppCompatActivity {
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
+		PreferenceManager.getDefaultSharedPreferences(this).edit().
+				putString(LookAppLauncherActivity.LOOK_SESSION_ID, "").apply();
 		PeerConnectionClient.getInstance().close();
 		unregisterReceiver(mReceiver);
 		if(mPeerList != null) {

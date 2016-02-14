@@ -8,16 +8,17 @@ import android.preference.PreferenceManager;
 
 import com.ardnezar.lookapp.R;
 
-public class LoopAppLauncherActivity extends Activity {
+public class LookAppLauncherActivity extends Activity {
 
 	public static final String LOOK_APP_ID = "id";
+	public static final String LOOK_SESSION_ID = "id";
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
 		if(sharedPref.contains(LOOK_APP_ID)) {
-			Intent intent = new Intent(getApplicationContext(), LoopAppMainActivity.class);
+			Intent intent = new Intent(getApplicationContext(), LookAppMainActivity.class);
 			intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 			startActivity(intent);
 		} else {
