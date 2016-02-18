@@ -17,6 +17,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import com.ardnezar.lookapp.CallActivity;
 import com.ardnezar.lookapp.PeerConnectionClient;
 import com.ardnezar.lookapp.R;
 
@@ -144,13 +145,12 @@ public class LookAppMainActivity extends AppCompatActivity {
 		keyprefRoomServerUrl = getString(R.string.pref_room_server_url_key);
 		keyprefRoom = getString(R.string.pref_room_key);
 		keyprefRoomList = getString(R.string.pref_room_list_key);
-
 		String address = "http://" + getResources().getString(R.string.host);
 		address += (":" + getResources().getString(R.string.port) + "/");
 
-		SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
-		PeerConnectionClient.getInstance().createPeerConnectionFactory(
-				this, address, pref.getString(LookAppLauncherActivity.LOOK_APP_ID, "1111111111"));
+//		SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
+//		PeerConnectionClient.getInstance().createPeerConnectionFactory(
+//				this, address, pref.getString(LookAppLauncherActivity.LOOK_APP_ID, "1111111111"));
 
 		IntentFilter filter = new IntentFilter();
 		filter.addAction(PEER_ADD_ACTION);
@@ -162,6 +162,8 @@ public class LookAppMainActivity extends AppCompatActivity {
 		mMessageList = new ArrayList<>();
 
 		mChatList = new HashMap<>();
+
+		startActivity(new Intent(this, CallActivity.class));
 	}
 
 

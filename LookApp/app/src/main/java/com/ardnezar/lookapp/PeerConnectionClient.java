@@ -13,12 +13,13 @@ package com.ardnezar.lookapp;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
-import com.ardnezar.lookapp.activities.LookAppMainActivity;
 import com.ardnezar.lookapp.activities.LookAppLauncherActivity;
+import com.ardnezar.lookapp.activities.LookAppMainActivity;
 import com.ardnezar.lookapp.util.LooperExecutor;
 import com.github.nkzawa.emitter.Emitter;
 import com.github.nkzawa.socketio.client.Manager;
@@ -44,6 +45,7 @@ import org.webrtc.VideoCapturerAndroid;
 import org.webrtc.VideoRenderer;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
+import org.webrtc.voiceengine.WebRtcAudioManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -270,9 +272,11 @@ public class PeerConnectionClient {
 		this.options = options;
 	}
 
+	private MessageHandler messageHandler;
+
 	public void createPeerConnectionFactory(
 			final Context context,
-			String host,
+			final String host,
 			String id) {
 
 		mContext = context;
@@ -291,29 +295,25 @@ public class PeerConnectionClient {
 		localVideoTrack = null;
 		remoteVideoTrack = null;
 		statsTimer = new Timer();
-		MessageHandler messageHandler = new MessageHandler();
+		messageHandler = new MessageHandler();
 		PreferenceManager.getDefaultSharedPreferences(mContext).edit().
 				putString(LookAppLauncherActivity.LOOK_SESSION_ID, "").apply();
 
-		try {
-			manager = new Manager(new URI(host));
-			client = manager.socket("/");
-		} catch (URISyntaxException e) {
-			e.printStackTrace();
-		}
-		client
-				.on(INIT_MESSAGE, messageHandler.onInitMessage)
-				.on(TEXT_MESSAGE, messageHandler.onTextMessage)
-				.on(INVITE_MESSAGE, messageHandler.onInviteMessage)
-				.on(LEAVE_MESSAGE, messageHandler.onLeaveMessage)
-				.on(AVAILABLE_USERS_MESSAGE, messageHandler.onAvailablePeersMessage)
-				.on(PRESENCE_MESSAGE, messageHandler.onPresenceMessage);
-		client.connect();
+
 
 		iceServers.add(new PeerConnection.IceServer("stun:stun.l.google.com:19302"));
 
+		mHost = host;
 
+		executor.execute(new Runnable() {
+			@Override
+			public void run() {
+				createPeerConnectionFactoryInternal(context, host);
+			}
+		});
 	}
+
+	private String mHost;
 
 
 		/*
@@ -347,6 +347,11 @@ public class PeerConnectionClient {
 		this.peerConnectionParameters = peerConnectionParameters;
 		this.events = events;
 		videoCallEnabled = peerConnectionParameters.videoCallEnabled;
+//
+//		PeerConnectionFactory.initializeAndroidGlobals(, true, true,
+//				false);
+//		factory = new PeerConnectionFactory();
+
 //		if (peerConnectionParameters == null) {
 //			Log.e(TAG, "Creating peer connection without initializing factory.");
 //			return;
@@ -359,6 +364,43 @@ public class PeerConnectionClient {
 			public void run() {
 				createMediaConstraintsInternal();
 //				createPeerConnectionInternal(renderEGLContext, iceServers);
+				if(mediaStream == null) {
+					mediaStream = factory.createLocalMediaStream("ARDAMS");
+					if (videoCallEnabled) {
+						String cameraDeviceName = CameraEnumerationAndroid.getDeviceName(0);
+						String frontCameraDeviceName =
+								CameraEnumerationAndroid.getNameOfFrontFacingDevice();
+						if (numberOfCameras > 1 && frontCameraDeviceName != null) {
+							cameraDeviceName = frontCameraDeviceName;
+						}
+						Log.d(TAG, "Opening camera: " + cameraDeviceName);
+						videoCapturer = VideoCapturerAndroid.create(cameraDeviceName, null,
+								peerConnectionParameters.captureToTexture ? renderEGLContext : null);
+						if (videoCapturer == null) {
+							reportError("Failed to open camera");
+							return;
+						}
+						mediaStream.addTrack(createVideoTrack(videoCapturer));
+					}
+
+					mediaStream.addTrack(factory.createAudioTrack(
+							AUDIO_TRACK_ID,
+							factory.createAudioSource(audioConstraints)));
+				}
+				try {
+					manager = new Manager(new URI(mHost));
+					client = manager.socket("/");
+				} catch (URISyntaxException e) {
+					e.printStackTrace();
+				}
+				client
+						.on(INIT_MESSAGE, messageHandler.onInitMessage)
+						.on(TEXT_MESSAGE, messageHandler.onTextMessage)
+						.on(INVITE_MESSAGE, messageHandler.onInviteMessage)
+						.on(LEAVE_MESSAGE, messageHandler.onLeaveMessage)
+						.on(AVAILABLE_USERS_MESSAGE, messageHandler.onAvailablePeersMessage)
+						.on(PRESENCE_MESSAGE, messageHandler.onPresenceMessage);
+				client.connect();
 			}
 		});
 
@@ -432,13 +474,24 @@ public class PeerConnectionClient {
 		private Emitter.Listener onPresenceMessage = new Emitter.Listener() {
 			@Override
 			public void call(Object... args) {
-				String peerId = (String) args[0];
-				Log.d(TAG, "onPresenceMessage..peerId:"+peerId);
+				try {
+					String peerId = (String) args[0];
+					Log.d(TAG, "onPresenceMessage..peerId:" + peerId);
+					Intent intent = new Intent();
+					intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
+					intent.putExtra(LookAppMainActivity.PEER_ID, peerId);
+					mContext.sendBroadcast(intent);
 
-				Intent intent = new Intent();
-				intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
-				intent.putExtra(LookAppMainActivity.PEER_ID, peerId);
-				mContext.sendBroadcast(intent);
+					if (!peers.containsKey(peerId)) {
+						// if MAX_PEER is reach, ignore the call
+						int endPoint = findEndPoint();
+						if (endPoint != MAX_PEER) {
+							Peer peer = addPeer(peerId, endPoint);
+							peer.pc.addStream(mediaStream);
+							new CreateOfferCommand().execute(peerId, null);
+						}
+					}
+				} catch(JSONException ex){}
 			}
 		};
 
@@ -474,6 +527,19 @@ public class PeerConnectionClient {
 						intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
 						intent.putExtra(LookAppMainActivity.PEER_IDS, list.toArray(new String[list.size()]));
 						mContext.sendBroadcast(intent);
+
+						for(String pid: list) {
+
+							if (!peers.containsKey(pid)) {
+								// if MAX_PEER is reach, ignore the call
+								int endPoint = findEndPoint();
+								if (endPoint != MAX_PEER) {
+									Peer peer = addPeer(pid, endPoint);
+									peer.pc.addStream(mediaStream);
+									new CreateOfferCommand().execute(pid, null);
+								}
+							}
+						}
 					} catch(JSONException ex){
 						Log.d(TAG, "onAvailablePeersMessage..exception");
 					}
@@ -593,6 +659,7 @@ public class PeerConnectionClient {
 
 		@Override
 		public void onIceConnectionChange(PeerConnection.IceConnectionState iceConnectionState) {
+			Log.d(TAG, "onIceConnectionChange..iceConnectionState:"+iceConnectionState);
 			if(iceConnectionState == PeerConnection.IceConnectionState.DISCONNECTED) {
 				removePeer(id);
 //				mListener.onStatusChanged("DISCONNECTED");
@@ -609,11 +676,13 @@ public class PeerConnectionClient {
 
 		@Override
 		public void onIceCandidate(final IceCandidate candidate) {
+
 			try {
 				JSONObject payload = new JSONObject();
 				payload.put("label", candidate.sdpMLineIndex);
 				payload.put("id", candidate.sdpMid);
 				payload.put("candidate", candidate.sdp);
+				Log.d(TAG, "onAddStream...candidate:" + payload.toString());
 //				sendMessage(id, "candidate", payload);
 			} catch (JSONException e) {
 				e.printStackTrace();
@@ -711,8 +780,72 @@ public class PeerConnectionClient {
 		return videoCallEnabled;
 	}
 
+	private void createPeerConnectionFactoryInternal(Context context, String host) {
+		PeerConnectionFactory.initializeInternalTracer();
+		if (peerConnectionParameters.tracing) {
+			PeerConnectionFactory.startInternalTracingCapture(
+					Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator
+							+ "webrtc-trace.txt");
+		}
+		Log.d(TAG, "Create peer connection factory. Use video: " +
+				peerConnectionParameters.videoCallEnabled);
+		isError = false;
+
+		// Initialize field trials.
+		PeerConnectionFactory.initializeFieldTrials(FIELD_TRIAL_AUTOMATIC_RESIZE);
+
+		// Check preferred video codec.
+		preferredVideoCodec = VIDEO_CODEC_VP8;
+		if (videoCallEnabled && peerConnectionParameters.videoCodec != null) {
+			if (peerConnectionParameters.videoCodec.equals(VIDEO_CODEC_VP9)) {
+				preferredVideoCodec = VIDEO_CODEC_VP9;
+			} else if (peerConnectionParameters.videoCodec.equals(VIDEO_CODEC_H264)) {
+				preferredVideoCodec = VIDEO_CODEC_H264;
+			}
+		}
+		Log.d(TAG, "Pereferred video codec: " + preferredVideoCodec);
+
+		// Check if ISAC is used by default.
+		preferIsac = false;
+		if (peerConnectionParameters.audioCodec != null
+				&& peerConnectionParameters.audioCodec.equals(AUDIO_CODEC_ISAC)) {
+			preferIsac = true;
+		}
+
+		// Enable/disable OpenSL ES playback.
+		if (!peerConnectionParameters.useOpenSLES) {
+			Log.d(TAG, "Disable OpenSL ES audio even if device supports it");
+			WebRtcAudioManager.setBlacklistDeviceForOpenSLESUsage(true /* enable */);
+		} else {
+			Log.d(TAG, "Allow OpenSL ES audio if device supports it");
+			WebRtcAudioManager.setBlacklistDeviceForOpenSLESUsage(false);
+		}
+
+		// Create peer connection factory.
+		if (!PeerConnectionFactory.initializeAndroidGlobals(context, true, true,
+				peerConnectionParameters.videoCodecHwAcceleration)) {
+			events.onPeerConnectionError("Failed to initializeAndroidGlobals");
+		}
+		if (options != null) {
+			Log.d(TAG, "Factory networkIgnoreMask option: " + options.networkIgnoreMask);
+		}
+		factory = new PeerConnectionFactory();
+		Log.d(TAG, "Peer connection factory created.");
+
+
+	}
+
 	private void createMediaConstraintsInternal() {
 		// Create peer connection constraints.
+//		pcConstraints = new MediaConstraints();
+//		// Enable DTLS for normal calls and disable for loopback calls.
+//		if (peerConnectionParameters.loopback) {
+//			pcConstraints.optional.add(
+//					new MediaConstraints.KeyValuePair(DTLS_SRTP_KEY_AGREEMENT_CONSTRAINT, "false"));
+//		} else {
+//			pcConstraints.optional.add(
+//					new MediaConstraints.KeyValuePair(DTLS_SRTP_KEY_AGREEMENT_CONSTRAINT, "true"));
+//		}
 
 		// Check if there is a camera on device and disable video call if not.
 		numberOfCameras = CameraEnumerationAndroid.getDeviceCount();

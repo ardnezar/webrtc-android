@@ -16,14 +16,18 @@ import android.app.AlertDialog;
 import android.app.FragmentTransaction;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager.LayoutParams;
 import android.widget.Toast;
+
+import com.ardnezar.lookapp.activities.LookAppLauncherActivity;
 
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
@@ -255,7 +259,7 @@ public class CallActivity extends Activity
 		ft.add(R.id.call_fragment_container, callFragment);
 		ft.add(R.id.hud_fragment_container, hudFragment);
 		ft.commit();
-		startCall();
+//		startCall();
 
 		// For command line execution run connection for <runTimeMs> and exit.
 		if (commandLineRun && runTimeMs > 0) {
@@ -267,6 +271,12 @@ public class CallActivity extends Activity
 			}, runTimeMs);
 		}
 
+		String address = "http://" + getResources().getString(R.string.host);
+		address += (":" + getResources().getString(R.string.port) + "/");
+
+		SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
+		PeerConnectionClient.getInstance().createPeerConnectionFactory(
+				this, address, pref.getString(LookAppLauncherActivity.LOOK_APP_ID, "1111111111"));
 		peerConnectionClient = PeerConnectionClient.getInstance();
 		peerConnectionClient.createPeerConnection(rootEglBase.getEglBaseContext(),
 				localRender,
