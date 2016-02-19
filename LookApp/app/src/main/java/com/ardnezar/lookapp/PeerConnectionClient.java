@@ -141,7 +141,7 @@ public class PeerConnectionClient {
 	private Socket client2;
 	private HashMap<String, Peer> peers = new HashMap<>();
 	private LinkedList<PeerConnection.IceServer> iceServers = new LinkedList<>();
-	private final static int MAX_PEER = 2;
+	private final static int MAX_PEER = 1;
 	private boolean[] endPoints = new boolean[MAX_PEER];
 	private Manager manager;
 
@@ -327,6 +327,20 @@ public class PeerConnectionClient {
 	 * 				The server sends this message to the designated client.
 	 * 6. INVITE - Server-->Client sends this message to a Client if another client has send a READY-TO-CONNECT message
 	 * 7. LEAVE - Server sends to all clients when someone leaves the connection
+	 *
+	 *
+	 * Video Communication Protocol:
+	 *
+	 * Peer A 									-------- INVITE ------> Peer B
+	 *
+	 *    										<------- READY ---------
+	 *
+	 * 	(Create Offer and Send it back)			-------- OFFER ------->
+	 *
+	 *											<-------- ANSWER -----> (Create answer and send it back)
+	 *
+	 *  (Update remote sdp for the connection)
+	 *
 	 */
 
 	private static final String INIT_MESSAGE = "INIT";
@@ -337,6 +351,9 @@ public class PeerConnectionClient {
 	private static final String TEXT_MESSAGE = "MESSAGE";
 	private static final String INVITE_MESSAGE = "INVITE";
 	private static final String AVAILABLE_USERS_MESSAGE = "AVAILABLE-USERS";
+	private static final String OFFER_MESSAGE = "OFFER";
+	private static final String ANSWER_MESSAGE = "ANSWER";
+	private static final String ICE_CANDIDATE_MESSAGE = "CANDIDATE";
 
 	public void createPeerConnection(
 			final EglBase.Context renderEGLContext,
@@ -397,6 +414,10 @@ public class PeerConnectionClient {
 						.on(INIT_MESSAGE, messageHandler.onInitMessage)
 						.on(TEXT_MESSAGE, messageHandler.onTextMessage)
 						.on(INVITE_MESSAGE, messageHandler.onInviteMessage)
+						.on(READY_MESSAGE, messageHandler.onReadyMessage)
+						.on(OFFER_MESSAGE, messageHandler.onOfferMessage)
+						.on(ANSWER_MESSAGE, messageHandler.onAnswerMessage)
+						.on(ICE_CANDIDATE_MESSAGE, messageHandler.onCandidateMessage)
 						.on(LEAVE_MESSAGE, messageHandler.onLeaveMessage)
 						.on(AVAILABLE_USERS_MESSAGE, messageHandler.onAvailablePeersMessage)
 						.on(PRESENCE_MESSAGE, messageHandler.onPresenceMessage);
@@ -468,30 +489,92 @@ public class PeerConnectionClient {
 			@Override
 			public void call(Object... args) {
 				Log.d(TAG, "onInviteMessage..");
+				String peerId = (String) args[0];
+				client.emit(READY_MESSAGE, peerId);
+			}
+		};
+
+		private Emitter.Listener onReadyMessage = new Emitter.Listener() {
+			@Override
+			public void call(Object... args) {
+				Log.d(TAG, "onReadyMessage..");
+				try {
+					String peerId = (String) args[0];
+					new CreateOfferCommand().execute(peerId, null);
+				} catch (JSONException ex){}
+			}
+		};
+
+		private Emitter.Listener onOfferMessage = new Emitter.Listener() {
+			@Override
+			public void call(Object... args) {
+
+				JSONObject data = (JSONObject) args[0];
+
+				if(data != null && data.length() > 0) {
+					Log.d(TAG, "onOfferMessage..");
+					try {
+						String from = data.getString("from");;
+						new CreateAnswerCommand().execute(from, data);
+					} catch (JSONException ex) {
+					}
+				}
+			}
+		};
+
+		private Emitter.Listener onAnswerMessage = new Emitter.Listener() {
+			@Override
+			public void call(Object... args) {
+
+				JSONObject data = (JSONObject) args[0];
+
+				if(data != null && data.length() > 0) {
+					Log.d(TAG, "onAnswerMessage..");
+					try {
+						String from = data.getString("from");;
+						new CreateAnswerCommand().execute(from, data);
+					} catch (JSONException ex) {
+					}
+				}
+			}
+		};
+
+		private Emitter.Listener onCandidateMessage = new Emitter.Listener() {
+			@Override
+			public void call(Object... args) {
+
+				JSONObject data = (JSONObject) args[0];
+
+				if(data != null && data.length() > 0) {
+					Log.d(TAG, "onCandidateMessage..");
+					try {
+						String from = data.getString("from");;
+						new CreateAnswerCommand().execute(from, data);
+					} catch (JSONException ex) {
+					}
+				}
 			}
 		};
 
 		private Emitter.Listener onPresenceMessage = new Emitter.Listener() {
 			@Override
 			public void call(Object... args) {
-				try {
-					String peerId = (String) args[0];
-					Log.d(TAG, "onPresenceMessage..peerId:" + peerId);
-					Intent intent = new Intent();
-					intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
-					intent.putExtra(LookAppMainActivity.PEER_ID, peerId);
-					mContext.sendBroadcast(intent);
+				String peerId = (String) args[0];
+				Log.d(TAG, "onPresenceMessage..peerId:" + peerId);
+				Intent intent = new Intent();
+				intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
+				intent.putExtra(LookAppMainActivity.PEER_ID, peerId);
+				mContext.sendBroadcast(intent);
 
-					if (!peers.containsKey(peerId)) {
-						// if MAX_PEER is reach, ignore the call
-						int endPoint = findEndPoint();
-						if (endPoint != MAX_PEER) {
-							Peer peer = addPeer(peerId, endPoint);
-							peer.pc.addStream(mediaStream);
-							new CreateOfferCommand().execute(peerId, null);
-						}
+				if (peerId != null && !peers.containsKey(peerId) && !peerId.equals(mSessionId)) {
+					// if MAX_PEER is reach, ignore the call
+					int endPoint = findEndPoint();
+					if (endPoint != MAX_PEER) {
+						Peer peer = addPeer(peerId, endPoint);
+						peer.pc.addStream(mediaStream);
+
 					}
-				} catch(JSONException ex){}
+				}
 			}
 		};
 
@@ -536,7 +619,9 @@ public class PeerConnectionClient {
 								if (endPoint != MAX_PEER) {
 									Peer peer = addPeer(pid, endPoint);
 									peer.pc.addStream(mediaStream);
-									new CreateOfferCommand().execute(pid, null);
+
+									//Inviting the peer for a video session
+									client.emit(INVITE_MESSAGE, pid);
 								}
 							}
 						}
@@ -569,29 +654,6 @@ public class PeerConnectionClient {
 
 
 				} catch (JSONException ex){}
-//				JSONObject data = (JSONObject) args[0];
-//				try {
-//					String from = data.getString("from");
-//					String type = data.getString("type");
-//					JSONObject payload = null;
-//					if(!type.equals("init")) {
-//						payload = data.getJSONObject("payload");
-//					}
-//					// if peer is unknown, try to add him
-//					if(!peers.containsKey(from)) {
-//						// if MAX_PEER is reach, ignore the call
-//						int endPoint = findEndPoint();
-//						if(endPoint != MAX_PEER) {
-//							Peer peer = addPeer(from, endPoint);
-//							peer.pc.addStream(mediaStream);
-//							commandMap.get(type).execute(from, payload);
-//						}
-//					} else {
-//						commandMap.get(type).execute(from, payload);
-//					}
-//				} catch (JSONException e) {
-//					e.printStackTrace();
-//				}
 			}
 		};
 
@@ -609,13 +671,6 @@ public class PeerConnectionClient {
 				//Send INIT-REPLY MESSAGE with current phone number
 
 				client.emit(INIT_REPLY_MESSAGE, prefs.getString(LookAppLauncherActivity.LOOK_APP_ID, null));
-
-//				Intent intent = new Intent();
-//				intent.setAction(LookAppMainActivity.PEER_ADD_ACTION);
-//				intent.putExtra(LookAppMainActivity.PEER_ID, id);
-//				mContext.sendBroadcast(intent);
-
-//				client.emit("broadcast", "hi");
 				Log.d(TAG, "onCallReady..done");
 			}
 		};
