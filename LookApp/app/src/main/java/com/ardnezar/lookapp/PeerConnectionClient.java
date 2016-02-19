@@ -347,13 +347,26 @@ public class PeerConnectionClient {
 	private static final String INIT_REPLY_MESSAGE = "INIT-REPLY";
 	private static final String PRESENCE_MESSAGE = "PRESENCE";
 	private static final String LEAVE_MESSAGE = "LEAVE";
-	private static final String READY_MESSAGE = "READY-TO-CONNECT";
 	private static final String TEXT_MESSAGE = "MESSAGE";
+
 	private static final String INVITE_MESSAGE = "INVITE";
-	private static final String AVAILABLE_USERS_MESSAGE = "AVAILABLE-USERS";
+	private static final String READY_MESSAGE = "READY-TO-CONNECT";
 	private static final String OFFER_MESSAGE = "OFFER";
 	private static final String ANSWER_MESSAGE = "ANSWER";
+
+	private static final String FROM_TAG = "from";
+	private static final String TYPE_TAG = "type";
+	private static final String PAYLOAD_TAG = "payload";
+	private static final String LABEL_TAG = "label";
+	private static final String ID_TAG = "id";
+	private static final String SDP_TAG = "sdp";
+	private static final String CANDIDATE_TAG = "candidate";
+
+	private static final String AVAILABLE_USERS_MESSAGE = "AVAILABLE-USERS";
+
+
 	private static final String ICE_CANDIDATE_MESSAGE = "CANDIDATE";
+	private static final String RTC_MESSAGE = "RTC_MESSAGE";
 
 	public void createPeerConnection(
 			final EglBase.Context renderEGLContext,
@@ -413,11 +426,12 @@ public class PeerConnectionClient {
 				client
 						.on(INIT_MESSAGE, messageHandler.onInitMessage)
 						.on(TEXT_MESSAGE, messageHandler.onTextMessage)
-						.on(INVITE_MESSAGE, messageHandler.onInviteMessage)
-						.on(READY_MESSAGE, messageHandler.onReadyMessage)
-						.on(OFFER_MESSAGE, messageHandler.onOfferMessage)
-						.on(ANSWER_MESSAGE, messageHandler.onAnswerMessage)
-						.on(ICE_CANDIDATE_MESSAGE, messageHandler.onCandidateMessage)
+//						.on(INVITE_MESSAGE, messageHandler.onInviteMessage)
+//						.on(READY_MESSAGE, messageHandler.onReadyMessage)
+//						.on(OFFER_MESSAGE, messageHandler.onOfferMessage)
+//						.on(ANSWER_MESSAGE, messageHandler.onAnswerMessage)
+//						.on(ICE_CANDIDATE_MESSAGE, messageHandler.onCandidateMessage)
+						.on(RTC_MESSAGE, messageHandler.onRtcMessage)
 						.on(LEAVE_MESSAGE, messageHandler.onLeaveMessage)
 						.on(AVAILABLE_USERS_MESSAGE, messageHandler.onAvailablePeersMessage)
 						.on(PRESENCE_MESSAGE, messageHandler.onPresenceMessage);
@@ -441,7 +455,7 @@ public class PeerConnectionClient {
 			Peer peer = peers.get(peerId);
 			SessionDescription sdp = new SessionDescription(
 					SessionDescription.Type.fromCanonicalForm(payload.getString("type")),
-					payload.getString("sdp")
+					payload.getString(SDP_TAG)
 			);
 			peer.pc.setRemoteDescription(peer, sdp);
 			peer.pc.createAnswer(peer, sdpMediaConstraints);
@@ -453,8 +467,8 @@ public class PeerConnectionClient {
 			Log.d(TAG,"SetRemoteSDPCommand");
 			Peer peer = peers.get(peerId);
 			SessionDescription sdp = new SessionDescription(
-					SessionDescription.Type.fromCanonicalForm(payload.getString("type")),
-					payload.getString("sdp")
+					SessionDescription.Type.fromCanonicalForm(payload.getString(TYPE_TAG)),
+					payload.getString(SDP_TAG)
 			);
 			peer.pc.setRemoteDescription(peer, sdp);
 		}
@@ -466,9 +480,9 @@ public class PeerConnectionClient {
 			PeerConnection pc = peers.get(peerId).pc;
 			if (pc.getRemoteDescription() != null) {
 				IceCandidate candidate = new IceCandidate(
-						payload.getString("id"),
-						payload.getInt("label"),
-						payload.getString("candidate")
+						payload.getString(ID_TAG),
+						payload.getInt(LABEL_TAG),
+						payload.getString(CANDIDATE_TAG)
 				);
 				pc.addIceCandidate(candidate);
 			}
@@ -485,59 +499,13 @@ public class PeerConnectionClient {
 			commandMap.put(PRESENCE_MESSAGE, new SetRemoteSDPCommand());
 		}
 
-		private Emitter.Listener onInviteMessage = new Emitter.Listener() {
-			@Override
-			public void call(Object... args) {
-				Log.d(TAG, "onInviteMessage..");
-				String peerId = (String) args[0];
-				client.emit(READY_MESSAGE, peerId);
-			}
-		};
-
-		private Emitter.Listener onReadyMessage = new Emitter.Listener() {
-			@Override
-			public void call(Object... args) {
-				Log.d(TAG, "onReadyMessage..");
-				try {
-					String peerId = (String) args[0];
-					new CreateOfferCommand().execute(peerId, null);
-				} catch (JSONException ex){}
-			}
-		};
-
-		private Emitter.Listener onOfferMessage = new Emitter.Listener() {
-			@Override
-			public void call(Object... args) {
-
-				JSONObject data = (JSONObject) args[0];
-
-				if(data != null && data.length() > 0) {
-					Log.d(TAG, "onOfferMessage..");
-					try {
-						String from = data.getString("from");;
-						new CreateAnswerCommand().execute(from, data);
-					} catch (JSONException ex) {
-					}
-				}
-			}
-		};
-
-		private Emitter.Listener onAnswerMessage = new Emitter.Listener() {
-			@Override
-			public void call(Object... args) {
-
-				JSONObject data = (JSONObject) args[0];
-
-				if(data != null && data.length() > 0) {
-					Log.d(TAG, "onAnswerMessage..");
-					try {
-						String from = data.getString("from");;
-						new CreateAnswerCommand().execute(from, data);
-					} catch (JSONException ex) {
-					}
-				}
-			}
-		};
+//		private Emitter.Listener onInviteMessage = new Emitter.Listener() {
+//			@Override
+//			public void call(Object... args) {
+//				Log.d(TAG, "onInviteMessage..");
+//
+//			}
+//		};
 
 		private Emitter.Listener onCandidateMessage = new Emitter.Listener() {
 			@Override
@@ -572,7 +540,6 @@ public class PeerConnectionClient {
 					if (endPoint != MAX_PEER) {
 						Peer peer = addPeer(peerId, endPoint);
 						peer.pc.addStream(mediaStream);
-
 					}
 				}
 			}
@@ -621,7 +588,11 @@ public class PeerConnectionClient {
 									peer.pc.addStream(mediaStream);
 
 									//Inviting the peer for a video session
-									client.emit(INVITE_MESSAGE, pid);
+
+									JSONObject payload = new JSONObject();
+									payload.put(FROM_TAG, mSessionId);
+									payload.put(TYPE_TAG, INVITE_MESSAGE);
+									sendMessage(pid, RTC_MESSAGE, payload);
 								}
 							}
 						}
@@ -629,6 +600,29 @@ public class PeerConnectionClient {
 						Log.d(TAG, "onAvailablePeersMessage..exception");
 					}
 				}
+			}
+		};
+
+		private Emitter.Listener onRtcMessage = new Emitter.Listener() {
+			@Override
+			public void call(Object... args) {
+//				String message = (String) args[0];
+				JSONObject data = (JSONObject) args[0];
+				Log.d(TAG, "onRtcMessage.message..data:"+data.toString());
+				try {
+					String type = data.getString(TYPE_TAG);
+					String peerId = data.getString(FROM_TAG);
+					if (type.equals(INVITE_MESSAGE)) {
+						client.emit(READY_MESSAGE, peerId);
+					} else if(type.equals(READY_MESSAGE)) {
+						new CreateOfferCommand().execute(peerId, null);
+					} else if(type.equals(OFFER_MESSAGE)) {
+						new CreateAnswerCommand().execute(peerId, data);
+					} else if(type.equals(ANSWER_MESSAGE)) {
+						new SetRemoteSDPCommand().execute(peerId, data);
+					}
+
+				} catch (JSONException ex){}
 			}
 		};
 
@@ -734,11 +728,11 @@ public class PeerConnectionClient {
 
 			try {
 				JSONObject payload = new JSONObject();
-				payload.put("label", candidate.sdpMLineIndex);
+				payload.put(LABEL_TAG, candidate.sdpMLineIndex);
 				payload.put("id", candidate.sdpMid);
 				payload.put("candidate", candidate.sdp);
 				Log.d(TAG, "onAddStream...candidate:" + payload.toString());
-//				sendMessage(id, "candidate", payload);
+//				sendTextMessage(id, "candidate", payload);
 			} catch (JSONException e) {
 				e.printStackTrace();
 			}
@@ -787,8 +781,8 @@ public class PeerConnectionClient {
 		} catch(JSONException ex){}
 	}
 
-	public void sendMessage(String to, String type, String msg) {
-		Log.d(TAG, "sendMessage..to:"+to+",msg:"+msg);
+	public void sendTextMessage(String to, String type, String msg) {
+		Log.d(TAG, "sendTextMessage..to:"+to+",msg:"+msg);
 		try {
 			JSONObject message = new JSONObject();
 			message.put("to", to);

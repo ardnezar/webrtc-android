@@ -94,7 +94,7 @@ public class ChatBubbleActivity extends Activity {
 
 	private boolean sendChatMessage(){
 		String text = chatText.getText().toString();
-		PeerConnectionClient.getInstance().sendMessage(mPeerId, "text", text);
+		PeerConnectionClient.getInstance().sendTextMessage(mPeerId, "text", text);
 		chatArrayAdapter.add(new ChatMessage(side, text));
 		chatText.setText("");
 		side = !side;
